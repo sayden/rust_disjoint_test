@@ -1,19 +1,44 @@
 use std::fmt::Debug;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 pub trait Identificable {
     fn get_id(&self) -> &String;
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Element<T: Clone + Debug> {
+pub fn new_element<T>(id: &str, meta: Option<T>) -> Element<T>
+where
+    T: Debug + Clone + Serialize + DeserializeOwned,
+{
+    Element {
+        id: id.to_string(),
+        meta: meta,
+        parent: id.to_string(),
+        rank: 0,
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Element<T>
+where
+    T: Clone + Debug + Serialize + DeserializeOwned,
+{
     pub id: String,
     pub parent: String,
     pub rank: usize,
     pub meta: Option<T>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Person {
+    pub name: String,
+    pub surname: String,
+}
 
-impl<T: Clone + Debug> Element<T> {
+impl<T> Element<T>
+where
+    T: Clone + Debug + Serialize + DeserializeOwned,
+{
     pub fn set_parent_with_string(&mut self, id: String) {
         self.parent = id
     }
@@ -29,9 +54,20 @@ impl<T: Clone + Debug> Element<T> {
     pub fn get_parent(&self) -> &String {
         &self.parent
     }
+
+    pub fn set_meta(&mut self, meta: T) {
+        self.meta = Some(meta)
+    }
+
+    pub fn get_meta(&self) -> &Option<T> {
+        &self.meta
+    }
 }
 
-impl<T: Clone + Debug> Identificable for Element<T> {
+impl<T> Identificable for Element<T>
+where
+    T: Clone + Debug + Serialize + DeserializeOwned,
+{
     fn get_id(&self) -> &String {
         &self.id
     }

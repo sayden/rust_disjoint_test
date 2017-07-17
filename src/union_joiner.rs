@@ -1,44 +1,61 @@
 use element::*;
 use std::fmt::Debug;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
-pub trait UnionJoiner<T: Clone + Debug> {
+pub trait UnionJoiner<T>
+where
+    T: Clone + Debug + Serialize + DeserializeOwned,
+{
     fn insert_element(&self, e: Element<T>) -> Result<bool, String>;
     fn get_element(&self, id: &str) -> Option<Element<T>>;
 }
 
-pub struct UnionJoinerImpl<T: Clone + Debug> {
+pub struct UnionJoinerImpl<T>
+where
+    T: Clone + Debug + Serialize + DeserializeOwned,
+{
     pub strategy: Box<UnionJoiner<T>>,
 }
 
 
 impl<T> UnionJoinerImpl<T>
 where
-    T: Clone + Debug,
+    T: Clone + Debug + Serialize + DeserializeOwned,
 {
     pub fn find(&self, id: &str) -> Option<Element<T>> {
-        let mut _id = id.to_string();
+        let mut _id: String = id.to_string();
 
         // println!("Find 0!");
 
+        let mut initial: Option<Element<T>> = None;
+
         loop {
-            let new_id: Option<Element<T>>;
-            {
-                new_id = self.strategy.get_element(&_id)
+            let new_element: Option<Element<T>> = self.strategy.get_element(&_id);
+            match initial {
+                None => initial = new_element.clone(),
+                _ => (),
             }
 
-            match new_id {
+            match new_element {
                 Some(candidate) => {
-                    let candidate_parent = candidate.get_parent();
+                    let candidate_parent = candidate.get_parent().clone();
                     let candidate_id = candidate.get_id();
 
-                    // This is the parent node
+                    // Is this the parent node?
                     if *candidate_parent == *candidate_id {
+
+                        // Is this the same than the searched element?
+                        if candidate_id == initial.clone().unwrap().get_id() {
+                            return initial;
+                        }
+
                         //Point the initial node to this new candidate
                         match self.strategy.insert_element(Element {
                             id: id.to_owned(),
                             parent: candidate_parent.clone(),
                             rank: candidate.get_rank(),
-                            meta: None,
+                            meta: initial.unwrap().get_meta().clone(),
                         }) {
                             Err(err) => println!("Error trying to insert: {}", err),
                             _ => (),
@@ -50,7 +67,7 @@ where
                     }
 
                     //Parent node is still unknown
-                    _id = candidate_parent.clone();
+                    _id = candidate_parent;
                 }
                 None => return None,
             }
@@ -65,44 +82,12 @@ where
 
         let (_f, must_insert_from, _p, must_insert_parent) = match (f, p) {
             (Some(e1), Some(e2)) => (e1, false, e2, false),
-            (Some(e), None) => (
-                e,
-                false,
-                Element {
-                    id: parent.to_string(),
-                    parent: parent.to_string(),
-                    rank: 0,
-                    meta: None,
-                },
-                true,
-            ),
-
-            (None, Some(e)) => (
-                Element {
-                    id: from.to_string(),
-                    parent: from.to_string(),
-                    rank: 0,
-                    meta: None,
-                },
-                true,
-                e,
-                false,
-            ),
-
+            (Some(e), None) => (e, false, new_element(parent, None), true),
+            (None, Some(e)) => (new_element(from, None), true, e, false),
             (None, None) => (
-                Element {
-                    id: from.to_string(),
-                    parent: from.to_string(),
-                    rank: 0,
-                    meta: None,
-                },
+                new_element(from, None),
                 true,
-                Element {
-                    id: parent.to_string(),
-                    parent: parent.to_string(),
-                    rank: 0,
-                    meta: None,
-                },
+                new_element(parent, None),
                 true,
             ),
         };
@@ -122,12 +107,13 @@ where
                     _ => (),
                 }
             }
-            (_, _) => {
+            (true, true) => {
                 match self.strategy.insert_element(_p.clone()) {
                     Err(err) => println!("{}", err),
                     _ => (),
                 };
             }
+            (_, _) => (),
         }
 
         match self.set_relation(_f, _p) {
@@ -139,9 +125,9 @@ where
 
     pub fn set_relation(&self, from: Element<T>, parent: Element<T>) -> Result<bool, String> {
         // println!(
-        //     "Setting relationships: F:{}, P:{}",
-        //     from.get_id(),
-        //     parent.get_id()
+        // "Setting relationships: F:{}, P:{}",
+        // from.get_id(),
+        // parent.get_id()
         // );
 
         if from.get_id() == parent.get_id() {
@@ -160,13 +146,30 @@ where
         mut son: Element<T>,
         mut parent: Element<T>,
     ) -> Result<bool, String> {
+        println!(
+            "son: {},{} parent {},{}",
+            son.get_id(),
+            son.get_rank(),
+            parent.get_id(),
+            parent.get_rank()
+        );
+
         let mut new_rank = parent.get_rank() + son.get_rank();
         if new_rank == 0 {
             new_rank = 1;
         }
 
+
         parent.set_rank(new_rank);
         son.set_parent_with_string(parent.get_id().clone());
+
+        println!(
+            "son: {},{} parent {},{}",
+            son.get_id(),
+            son.get_rank(),
+            parent.get_id(),
+            parent.get_rank()
+        );
 
         match (
             self.strategy.insert_element(parent),
@@ -176,5 +179,9 @@ where
             (Err(e), _) => return Err(e),
             (_, Err(e)) => return Err(e),
         }
+    }
+
+    pub fn insert_element(&self, e: Element<T>) -> Result<bool, String> {
+        self.strategy.insert_element(e)
     }
 }

@@ -11,6 +11,11 @@ use self::redis::Connection;
 use self::redis::RedisError;
 use self::redis::Commands;
 
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+
+use serde_json;
+
 use self::redis::Value;
 
 
@@ -34,13 +39,38 @@ impl RedisUnion {
 
 impl<T> UnionJoiner<T> for RedisUnion
 where
-    T: Clone + Debug,
+    T: Clone + Debug + Serialize + DeserializeOwned,
 {
     fn insert_element(&self, e: Element<T>) -> Result<bool, String> {
         // println!("Inserting: {:?}", e);
 
-        match self.conn {
-            Some(ref connection) => {
+        let meta_serialized: Option<String> = e.get_meta().clone().and_then(|m| {
+            serde_json::to_string(&m).ok()
+        });
+
+        match (&self.conn, meta_serialized) {
+            (&Some(ref connection), Some(ref meta_info)) => {
+                redis::pipe()
+                    .atomic()
+                    .cmd("HSET")
+                    .arg(e.get_id())
+                    .arg("parent")
+                    .arg(e.get_parent())
+                    .ignore()
+                    .cmd("HSET")
+                    .arg(e.get_id())
+                    .arg("rank")
+                    .arg(e.get_rank())
+                    .ignore()
+                    .cmd("HSET")
+                    .arg(e.get_id())
+                    .arg("meta")
+                    .arg(meta_info)
+                    .query::<Value>(connection)
+                    .map_err(|err| format!("Error trying to insert element: {}", err))
+                    .map(|_| true)
+            }
+            (&Some(ref connection), None) => {
                 redis::pipe()
                     .atomic()
                     .cmd("HSET")
@@ -56,7 +86,7 @@ where
                     .map_err(|err| format!("Error trying to insert element: {}", err))
                     .map(|_| true)
             }
-            None => Err("No connection available".to_string()),
+            (&None, _) => Err("No connection available".to_string()),
         }
     }
 
@@ -73,6 +103,7 @@ where
 
                         // println!("ID: {}, got {:?}", id, values);
 
+
                         let element: Element<T> = Element {
                             id: id.to_string(),
                             parent: redis::from_redis_value(&values[1])
@@ -81,11 +112,16 @@ where
 
                             rank: values
                                 .get(3)
-                                .and_then(|value_found| {
-                                    redis::from_redis_value(value_found).or::<usize>(Ok(0)).ok()
+                                .map(|value_found: &Value| {
+                                    redis::from_redis_value(value_found).unwrap_or(0)
                                 })
                                 .unwrap(),
-                            meta: None,
+                            meta: values
+                                .get(5)
+                                .map(|value_found: &Value| {
+                                    redis::from_redis_value(value_found).unwrap_or("".to_string())
+                                })
+                                .and_then(|val: String| serde_json::from_str(&&val).ok()),
                         };
 
                         // println!("{:?}", &element);
