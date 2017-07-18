@@ -54,7 +54,7 @@ where
                         match self.strategy.insert_element(Element {
                             id: id.to_owned(),
                             parent: candidate_parent.clone(),
-                            rank: candidate.get_rank(),
+                            rank: candidate.get_rank() - 1,
                             meta: initial.unwrap().get_meta().clone(),
                         }) {
                             Err(err) => println!("Error trying to insert: {}", err),
@@ -146,13 +146,13 @@ where
         mut son: Element<T>,
         mut parent: Element<T>,
     ) -> Result<bool, String> {
-        println!(
-            "son: {},{} parent {},{}",
-            son.get_id(),
-            son.get_rank(),
-            parent.get_id(),
-            parent.get_rank()
-        );
+        // println!(
+        //     "son: {},{} parent {},{}",
+        //     son.get_id(),
+        //     son.get_rank(),
+        //     parent.get_id(),
+        //     parent.get_rank()
+        // );
 
         let mut new_rank = parent.get_rank() + son.get_rank();
         if new_rank == 0 {
@@ -183,5 +183,9 @@ where
 
     pub fn insert_element(&self, e: Element<T>) -> Result<bool, String> {
         self.strategy.insert_element(e)
+    }
+
+    pub fn get_element(&self, id: &str) -> Option<Element<T>> {
+        self.strategy.get_element(id)
     }
 }
