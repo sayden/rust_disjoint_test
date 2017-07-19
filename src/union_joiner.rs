@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+// Trait that all persistence strategies must implement
 pub trait UnionJoiner<T>
 where
     T: Clone + Debug + Serialize + DeserializeOwned,
@@ -11,6 +12,7 @@ where
     fn get_element(&self, id: &str) -> Option<Element<T>>;
 }
 
+// Facade to perform union set operations against all the possible strategies.
 pub struct UnionJoinerImpl<T>
 where
     T: Clone + Debug + Serialize + DeserializeOwned,
@@ -18,11 +20,13 @@ where
     pub strategy: Box<UnionJoiner<T>>,
 }
 
-
 impl<T> UnionJoinerImpl<T>
 where
     T: Clone + Debug + Serialize + DeserializeOwned,
 {
+    // find uses the disjoint set 'find' operation to retrieve an element. It will reposition it
+    // in case it is neccessary before returning. It always return the parent element of the
+    // queried id. If you need the concrete element of this id, use 'get_element'
     pub fn find(&self, id: &str) -> Option<Element<T>> {
         let mut _id: String = id.to_string();
 
@@ -74,6 +78,8 @@ where
         }
     }
 
+    // union_join takes two references to nodes that may exist, perform a find operation on them
+    // (repositioning the nodes if necessary) and change their parents nodes.
     pub fn union_join(&self, from: &str, parent: &str) {
         let f = self.find(&from);
         let p = self.find(&parent);
@@ -123,7 +129,7 @@ where
     }
 
 
-    pub fn set_relation(&self, from: Element<T>, parent: Element<T>) -> Result<bool, String> {
+    fn set_relation(&self, from: Element<T>, parent: Element<T>) -> Result<bool, String> {
         // println!(
         // "Setting relationships: F:{}, P:{}",
         // from.get_id(),
@@ -181,10 +187,12 @@ where
         }
     }
 
+    // Helper to insert an element directly without any computation
     pub fn insert_element(&self, e: Element<T>) -> Result<bool, String> {
         self.strategy.insert_element(e)
     }
 
+    // Helper to return an element without performing a 'find' operation on it.
     pub fn get_element(&self, id: &str) -> Option<Element<T>> {
         self.strategy.get_element(id)
     }
