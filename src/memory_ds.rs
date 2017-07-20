@@ -1,51 +1,37 @@
-// use element::*;
-// use std::collections::HashMap;
-// use union_joiner::UnionJoiner;
-// use std::clone::Clone;
-// use std::fmt::Debug;
-// use serde::{Deserialize, Serialize};
-// use std::sync::Mutex;
+use element::*;
+use std::collections::HashMap;
+use union_joiner::UnionJoiner;
+use std::clone::Clone;
+use std::fmt::Debug;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use std::cell::RefCell;
 
-// lazy_static! {
-//     pub static ref RELS: Mutex<HashMap<String, Element<'static, T>>> = {
-//         let m = Mutex::new(HashMap::new());
-//         m
-//     };
-// }
-
-// #[derive(Debug, Clone, PartialEq)]
-// pub struct MemoryDS {}
+#[derive(Debug, Clone)]
+pub struct MemoryDS<T>
+where
+    T: Clone + Debug + Serialize + DeserializeOwned,
+{
+    pub hash: RefCell<HashMap<String, Element<T>>>,
+}
 
 
-// impl<'de, T> UnionJoiner<'de, T> for MemoryDS
-// where
-//     T: Clone + Debug + Serialize + Deserialize<'de>,
-// {
-//     fn insert_element(&self, e: Element<'de, T>) -> Result<bool, String> {
-//         let id = e.get_id().clone();
-//         RELS.try_lock().unwrap().insert(id.clone(), e);
-//         Ok(true)
-//     }
+impl<T> UnionJoiner<T> for MemoryDS<T>
+where
+    T: Clone + Debug + Serialize + DeserializeOwned,
+{
+    fn insert_element(&self, e: Element<T>) -> Result<bool, String> {
+        let id = e.get_id().clone();
+        self.hash.borrow_mut().insert(id.clone(), e);
+        Ok(true)
+    }
 
-//     fn get_element(&self, id: &str) -> Option<Element<'de, T>>
-//     where
-//         T: Clone + Debug + Serialize + Deserialize<'de>,
-//     {
-//         let a = RELS.try_lock().unwrap();
-//         let val: Option<Element<'de, String>> = a.get(id).cloned();
-//         val
-//     }
-// }
-
-// impl MemoryDS {
-//     pub fn get_clone(&self) -> HashMap<String, Element<String>> {
-//         RELS.try_lock().unwrap().clone()
-//     }
-
-//     fn cast<'de, T>(i: T) -> Option<String>
-//     where
-//         T: Serialize + Deserialize<'de> + Debug + Clone,
-//     {
-
-//     }
-// }
+    fn get_element(&self, id: &str) -> Option<Element<T>>
+    where
+        T: Clone + Debug + Serialize + DeserializeOwned,
+    {
+        let a = self.hash.borrow_mut();
+        let val: Option<Element<T>> = a.get(id).cloned();
+        val
+    }
+}

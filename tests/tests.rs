@@ -10,6 +10,11 @@ extern crate serde_json;
 use rustlations::union_joiner::UnionJoinerImpl;
 use rustlations::redis_union::RedisUnion;
 use rustlations::element::*;
+use rustlations::memory_ds::MemoryDS;
+
+use std::cell::RefCell;
+use std::collections::HashMap;
+
 
 use redis::*;
 
@@ -78,22 +83,6 @@ fn test_redis() {
     }
 
     mem.union_join(tesla, tyrion);
-    // mem.union_join(tyrion, mario);
-    // mem.union_join(tyrion, ula);
-
-    // println!("Mario? {:?}", mem.find(&mario).unwrap());
-    // println!("Ula? {:?}", mem.find(&ula).unwrap());
-    // println!("Tesla? {:?}", mem.find(&tesla).unwrap());
-    // println!("Tyrion? {:?}", mem.find(&tyrion).unwrap());
-
-    // mem.union_join(ula, mario);
-    // mem.union_join("contador", "valverde");
-    // mem.union_join("froome", "contador");
-    // mem.union_join("froome", "tyrion");
-
-    // mem.find("froome");
-    // mem.find("contador");
-    // mem.union_join("contador", "froome");
 }
 
 #[test]
@@ -219,6 +208,36 @@ fn test_join_various_elements_that_didnt_exist_before() {
     clean();
 }
 
+#[test]
+fn test_find_a_recently_inserted_element_in_memory() {
+    let memory_strategy = MemoryDS { hash: RefCell::new(HashMap::new()) };
+
+    let mem: UnionJoinerImpl<Caracteristics> =
+        UnionJoinerImpl { strategy: Box::new(memory_strategy) };
+
+
+    let testing0 = new_element(
+        "testing0",
+        Some(Caracteristics {
+            name: "testing0".to_string(),
+            breed: "testing0_meta".to_string(),
+        }),
+    );
+
+    mem.insert_element(testing0).unwrap();
+    let result = mem.find("testing0").unwrap();
+
+    assert_eq!(result.get_id().to_string(), "testing0".to_string());
+    assert_eq!(
+        result.get_meta().clone().unwrap().name,
+        "testing0".to_string()
+    );
+    assert_eq!(
+        result.get_meta().clone().unwrap().breed,
+        "testing0_meta".to_string()
+    );
+}
+
 fn clean() {
     println!(
         "Delete: {:?}",
@@ -244,58 +263,3 @@ fn clean() {
             })
     );
 }
-// fn test_memory() {
-// let memoryds = Box::new(MemoryDS {});
-
-// let mem: UnionJoinerImpl<String> = UnionJoinerImpl { strategy: memoryds };
-
-// let mario = "mario";
-// let tesla = "tesla";
-// let tyrion = "tyrion";
-// let ula = "ula";
-
-// mem.union_join(tesla, tyrion);
-// mem.union_join(tyrion, mario);
-// mem.union_join(tyrion, ula);
-
-// println!("Mario? {:?}", mem.find(&mario).unwrap());
-// println!("Ula? {:?}", mem.find(&ula).unwrap());
-// println!("Tesla? {:?}", mem.find(&tesla).unwrap());
-// println!("Tyrion? {:?}", mem.find(&tyrion).unwrap());
-
-// println!("");
-
-// for kv in rustlations::memory_ds::RELS.lock().unwrap().iter() {
-//     println!(
-//         "id: {}, parent: {}, rank: {}",
-//         kv.0,
-//         kv.1.get_parent(),
-//         kv.1.get_rank()
-//     );
-// }
-
-// println!("");
-
-// println!("Mario? {:?}", mem.find(&mario).unwrap());
-
-// println!("");
-
-// mem.union_join(ula, mario);
-// mem.union_join("contador", "valverde");
-// mem.union_join("froome", "contador");
-// mem.union_join("froome", "tyrion");
-
-// for kv in rustlations::memory_ds::RELS.lock().unwrap().iter() {
-//     println!("{},{},{}", kv.0, kv.1.get_parent(), kv.1.get_rank());
-// }
-
-// println!("");
-
-// mem.find("froome");
-// mem.find("contador");
-// mem.union_join("contador", "froome");
-
-// for kv in rustlations::memory_ds::RELS.lock().unwrap().iter() {
-//     println!("{},{},{}", kv.0, kv.1.get_parent(), kv.1.get_rank());
-// }
-// }
