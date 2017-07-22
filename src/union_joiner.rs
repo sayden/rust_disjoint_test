@@ -8,7 +8,7 @@ pub trait UnionJoiner<T>
 where
     T: Clone + Debug + Serialize + DeserializeOwned,
 {
-    fn insert_element(&self, e: Element<T>) -> Result<bool, String>;
+    fn insert_element(&self, e: Element<T>) -> Result<(), String>;
     fn get_element(&self, id: &str) -> Option<Element<T>>;
 }
 
@@ -19,6 +19,19 @@ where
 {
     pub strategy: Box<UnionJoiner<T>>,
 }
+
+
+unsafe impl<T> Send for UnionJoinerImpl<T>
+where
+    T: Clone + Debug + Serialize + DeserializeOwned,
+{
+}
+unsafe impl<T> Sync for UnionJoinerImpl<T>
+where
+    T: Clone + Debug + Serialize + DeserializeOwned,
+{
+}
+
 
 impl<T> UnionJoinerImpl<T>
 where
@@ -129,7 +142,7 @@ where
     }
 
 
-    fn set_relation(&self, from: Element<T>, parent: Element<T>) -> Result<bool, String> {
+    fn set_relation(&self, from: Element<T>, parent: Element<T>) -> Result<(), String> {
         // println!(
         // "Setting relationships: F:{}, P:{}",
         // from.get_id(),
@@ -137,7 +150,7 @@ where
         // );
 
         if from.get_id() == parent.get_id() {
-            return Ok(true);
+            return Ok(());
         }
 
         if from.get_rank() > parent.get_rank() {
@@ -151,7 +164,7 @@ where
         &self,
         mut son: Element<T>,
         mut parent: Element<T>,
-    ) -> Result<bool, String> {
+    ) -> Result<(), String> {
         // println!(
         //     "son: {},{} parent {},{}",
         //     son.get_id(),
@@ -181,14 +194,14 @@ where
             self.strategy.insert_element(parent),
             self.strategy.insert_element(son),
         ) {
-            (Ok(_), Ok(_)) => return Ok(true),
+            (Ok(_), Ok(_)) => return Ok(()),
             (Err(e), _) => return Err(e),
             (_, Err(e)) => return Err(e),
         }
     }
 
     // Helper to insert an element directly without any computation
-    pub fn insert_element(&self, e: Element<T>) -> Result<bool, String> {
+    pub fn insert_element(&self, e: Element<T>) -> Result<(), String> {
         self.strategy.insert_element(e)
     }
 

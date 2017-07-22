@@ -41,7 +41,7 @@ impl<T> UnionJoiner<T> for RedisUnion
 where
     T: Clone + Debug + Serialize + DeserializeOwned,
 {
-    fn insert_element(&self, e: Element<T>) -> Result<bool, String> {
+    fn insert_element(&self, e: Element<T>) -> Result<(), String> {
         // println!("Inserting: {:?}", e);
 
         let meta_serialized: Option<String> = e.get_meta().clone().and_then(|m| {
@@ -68,7 +68,7 @@ where
                     .arg(meta_info)
                     .query::<Value>(connection)
                     .map_err(|err| format!("Error trying to insert element: {}", err))
-                    .map(|_| true)
+                    .map(|_| ())
             }
             (&Some(ref connection), None) => {
                 redis::pipe()
@@ -84,7 +84,7 @@ where
                     .arg(e.get_rank())
                     .query::<Value>(connection)
                     .map_err(|err| format!("Error trying to insert element: {}", err))
-                    .map(|_| true)
+                    .map(|_| ())
             }
             (&None, _) => Err("No connection available".to_string()),
         }

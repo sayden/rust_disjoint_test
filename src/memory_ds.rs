@@ -20,10 +20,10 @@ impl<T> UnionJoiner<T> for MemoryDS<T>
 where
     T: Clone + Debug + Serialize + DeserializeOwned,
 {
-    fn insert_element(&self, e: Element<T>) -> Result<bool, String> {
+    fn insert_element(&self, e: Element<T>) -> Result<(), String> {
         let id = e.get_id().clone();
         self.hash.borrow_mut().insert(id.clone(), e);
-        Ok(true)
+        Ok(())
     }
 
     fn get_element(&self, id: &str) -> Option<Element<T>>
