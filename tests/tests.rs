@@ -5,11 +5,7 @@ extern crate serde_derive;
 
 extern crate serde;
 extern crate serde_json;
-
-pub mod union_joiner;
-pub mod element;
-pub mod memory_ds;
-pub mod redis_union;
+extern crate rustlations;
 
 use rustlations::union_joiner::UnionJoinerImpl;
 use rustlations::redis_union::RedisUnion;
@@ -26,6 +22,12 @@ use redis::*;
 pub struct Caracteristics {
     pub name: String,
     pub breed: String,
+}
+
+impl ToString for Caracteristics {
+    fn to_string(&self) -> String {
+        serde_json::to_string(self).unwrap_or("Error".to_string())
+    }
 }
 
 #[test]
@@ -149,8 +151,8 @@ fn test_join_two_elements() {
     let testing = new_element("testing2", None);
     let testing3 = new_element("testing3", None);
 
-    println!("{}", mem.insert_element(testing).unwrap());
-    println!("{}", mem.insert_element(testing3).unwrap());
+    mem.insert_element(testing).unwrap();
+    mem.insert_element(testing3).unwrap();
 
     mem.union_join("testing2", "testing3");
 

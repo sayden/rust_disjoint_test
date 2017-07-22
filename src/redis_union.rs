@@ -35,20 +35,14 @@ impl RedisUnion {
             })
 
     }
-}
 
-impl<T> UnionJoiner<T> for RedisUnion
-where
-    T: Clone + Debug + Serialize + DeserializeOwned,
-{
-    fn insert_element(&self, e: Element<T>) -> Result<(), String> {
+    fn insert<T>(&self, e: Element<T>, meta: Option<String>) -> Result<(), String>
+    where
+        T: Clone + Debug + Serialize + DeserializeOwned,
+    {
         // println!("Inserting: {:?}", e);
 
-        let meta_serialized: Option<String> = e.get_meta().clone().and_then(|m| {
-            serde_json::to_string(&m).ok()
-        });
-
-        match (&self.conn, meta_serialized) {
+        match (&self.conn, meta) {
             (&Some(ref connection), Some(ref meta_info)) => {
                 redis::pipe()
                     .atomic()
@@ -88,6 +82,31 @@ where
             }
             (&None, _) => Err("No connection available".to_string()),
         }
+    }
+
+    pub fn get_meta<T>(&self, e: &Element<T>) -> Option<String>
+    where
+        T: Clone + Debug + Serialize + DeserializeOwned + ToString,
+    {
+        e.get_meta().clone().and_then(|m: T| {
+            serde_json::to_string(&m)
+                .and_then(|s| if s.contains("\\") {
+                    Ok(m.to_string())
+                } else {
+                    Ok(s)
+                })
+                .ok()
+        })
+    }
+}
+
+impl<T> UnionJoiner<T> for RedisUnion
+where
+    T: Clone + Debug + Serialize + DeserializeOwned + ToString,
+{
+    fn insert_element(&self, e: Element<T>) -> Result<(), String> {
+        let meta = self.get_meta(&e);
+        self.insert(e, meta)
     }
 
     fn get_element(&self, id: &str) -> Option<Element<T>> {
