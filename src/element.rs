@@ -1,22 +1,12 @@
 use std::fmt::Debug;
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-
-pub trait Identificable {
-    fn get_id(&self) -> &String;
-}
-
-pub fn new_element<T>(id: &str, meta: Option<T>) -> Element<T>
-where
-    T: Debug + Clone + Serialize + DeserializeOwned,
-{
-    Element {
-        id: id.to_string(),
-        meta: meta,
-        parent: id.to_string(),
-        rank: 0,
-    }
-}
+use serde::{Serialize, Serializer, Deserialize};
+use serde::de::{DeserializeOwned, Visitor, Deserializer};
+use serde::de;
+use serde::ser::SerializeStruct;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Error;
 
 #[derive(Debug, Clone)]
 pub struct Element<T>
@@ -29,10 +19,27 @@ where
     pub meta: Option<T>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Person {
-    pub name: String,
-    pub surname: String,
+pub struct RawString String;
+
+impl Serialize for Element<String> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("Element", 4)?;
+        s.serialize_field("id", &self.id)?;
+        s.serialize_field("parent", &self.parent)?;
+        s.serialize_field("rank", &self.rank)?;
+        s.serialize_field("meta", &self.meta)?;
+
+        s.end()
+    }
+}
+
+impl Display for Element<String> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "{}", self)
+    }
 }
 
 impl<T> Element<T>
@@ -62,13 +69,20 @@ where
     pub fn get_meta(&self) -> &Option<T> {
         &self.meta
     }
+
+    pub fn get_id(&self) -> &String {
+        &self.id
+    }
 }
 
-impl<T> Identificable for Element<T>
+pub fn new_element<T>(id: &str, meta: Option<T>) -> Element<T>
 where
-    T: Clone + Debug + Serialize + DeserializeOwned,
+    T: Debug + Clone + Serialize + DeserializeOwned,
 {
-    fn get_id(&self) -> &String {
-        &self.id
+    Element {
+        id: id.to_string(),
+        meta: meta,
+        parent: id.to_string(),
+        rank: 0,
     }
 }
