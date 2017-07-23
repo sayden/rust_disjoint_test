@@ -36,10 +36,13 @@ impl RedisUnion {
 
     }
 
-    fn insert<T>(&self, e: Element<T>, meta: Option<String>) -> Result<(), String>
-    where
-        T: Clone + Debug + Serialize + DeserializeOwned,
-    {
+    fn insert(
+        &self,
+        id: &String,
+        parent: &String,
+        rank: usize,
+        meta: Option<String>,
+    ) -> Result<(), String> {
         // println!("Inserting: {:?}", e);
 
         match (&self.conn, meta) {
@@ -47,17 +50,17 @@ impl RedisUnion {
                 redis::pipe()
                     .atomic()
                     .cmd("HSET")
-                    .arg(e.get_id())
+                    .arg(id)
                     .arg("parent")
-                    .arg(e.get_parent())
+                    .arg(parent)
                     .ignore()
                     .cmd("HSET")
-                    .arg(e.get_id())
+                    .arg(id)
                     .arg("rank")
-                    .arg(e.get_rank())
+                    .arg(rank)
                     .ignore()
                     .cmd("HSET")
-                    .arg(e.get_id())
+                    .arg(id)
                     .arg("meta")
                     .arg(meta_info)
                     .query::<Value>(connection)
@@ -68,14 +71,14 @@ impl RedisUnion {
                 redis::pipe()
                     .atomic()
                     .cmd("HSET")
-                    .arg(e.get_id())
+                    .arg(id)
                     .arg("parent")
-                    .arg(e.get_parent())
+                    .arg(parent)
                     .ignore()
                     .cmd("HSET")
-                    .arg(e.get_id())
+                    .arg(id)
                     .arg("rank")
-                    .arg(e.get_rank())
+                    .arg(rank)
                     .query::<Value>(connection)
                     .map_err(|err| format!("Error trying to insert element: {}", err))
                     .map(|_| ())
@@ -84,32 +87,7 @@ impl RedisUnion {
         }
     }
 
-    pub fn get_meta<T>(&self, e: &Element<T>) -> Option<String>
-    where
-        T: Clone + Debug + Serialize + DeserializeOwned + ToString,
-    {
-        e.get_meta().clone().and_then(|m: T| {
-            serde_json::to_string(&m)
-                .and_then(|s| if s.contains("\\") {
-                    Ok(m.to_string())
-                } else {
-                    Ok(s)
-                })
-                .ok()
-        })
-    }
-}
-
-impl<T> UnionJoiner<T> for RedisUnion
-where
-    T: Clone + Debug + Serialize + DeserializeOwned + ToString,
-{
-    fn insert_element(&self, e: Element<T>) -> Result<(), String> {
-        let meta = self.get_meta(&e);
-        self.insert(e, meta)
-    }
-
-    fn get_element(&self, id: &str) -> Option<Element<T>> {
+    fn get(&self, id: &str) -> Option<Element<String>> {
         // println!("Getting element");
         match self.conn {
             Some(ref connection) => {
@@ -121,9 +99,7 @@ where
                         }
 
                         // println!("ID: {}, got {:?}", id, values);
-
-
-                        let element: Element<T> = Element {
+                        let element: Element<String> = Element {
                             id: id.to_string(),
                             parent: redis::from_redis_value(&values[1])
                                 .or::<String>(Ok(id.to_owned()))
@@ -135,12 +111,10 @@ where
                                     redis::from_redis_value(value_found).unwrap_or(0)
                                 })
                                 .unwrap(),
-                            meta: values
-                                .get(5)
-                                .map(|value_found: &Value| {
-                                    redis::from_redis_value(value_found).unwrap_or("".to_string())
-                                })
-                                .and_then(|val: String| serde_json::from_str(&&val).ok()),
+                            meta: values.get(5).map(|value_found: &Value| {
+                                println!("Element?: {:?}", value_found);
+                                redis::from_redis_value(value_found).unwrap_or("".to_string())
+                            }),
                         };
 
                         // println!("{:?}", &element);
@@ -158,5 +132,44 @@ where
                 None
             }
         }
+    }
+}
+
+impl<T> UnionJoiner<T> for RedisUnion
+where
+    T: Clone + Debug + Serialize + DeserializeOwned + ToString,
+{
+    fn insert_element(&self, e: Element<T>) -> Result<(), String> {
+        let meta = e.get_meta().clone().and_then(
+            |m: T| serde_json::to_string(&m).ok(),
+        );
+
+        self.insert(e.get_id(), e.get_parent(), e.get_rank(), meta)
+    }
+
+    fn get_element(&self, id: &str) -> Option<Element<T>> {
+        let new_meta = match self.get(id) {
+            Some(ele) => {
+                match ele.get_meta() {
+                    &Some(ref meta) => serde_json::from_str(meta.as_str()).ok(),
+                    &None => None,
+                }
+            }
+            None => None,
+        };
+
+        let result: Option<Element<T>> = match self.get(id) {
+            Some(ele) => {
+                Some(new_element_with_data(
+                    ele.get_id(),
+                    ele.get_parent(),
+                    ele.get_rank(),
+                    new_meta,
+                ))
+            }
+            None => None,
+        };
+
+        result
     }
 }
